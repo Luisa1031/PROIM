@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Recursos Humanos</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet" />
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <style>
+    body {
+      background-color: #f8f9fa;
+    }
+    .toast-container {
+      position: fixed;
+      top: 1rem;
+      right: 1rem;
+      z-index: 9999;
+    }
+  </style>
+</head>
+<body>
+  <div class="container py-5">
+    <h2 class="mb-4">Módulo de Recursos Humanos</h2>
+
+    <!-- Formulario -->
+    <div class="card shadow mb-4">
+      <div class="card-header bg-primary text-white">
+        <strong id="tituloFormulario">Registrar Empleado</strong>
+      </div>
+      <div class="card-body">
+        <form id="formEmpleado">
+          <input type="hidden" id="empleadoId" />
+          <div class="row g-3">
+            <!-- Campos del formulario -->
+            <div class="col-md-4">
+              <label class="form-label">Nombre</label>
+              <input type="text" class="form-control" id="nombre" required />
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Cargo</label>
+              <input type="text" class="form-control" id="cargo" required />
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Área</label>
+              <input type="text" class="form-control" id="area" required />
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Teléfono</label>
+              <input type="tel" class="form-control" id="telefono" required />
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Email</label>
+              <input type="email" class="form-control" id="email" required />
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Fecha de ingreso</label>
+              <input type="date" class="form-control" id="fechaIngreso" required />
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Tipo de contrato</label>
+              <select class="form-select" id="tipoContrato">
+                <option>Indefinido</option>
+                <option>Término Fijo</option>
+                <option>Prestación de Servicios</option>
+              </select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Salario</label>
+              <input type="number" class="form-control" id="salario" placeholder="Ej: 2500000" />
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Estado</label>
+              <select class="form-select" id="estado">
+                <option>Activo</option>
+                <option>Inactivo</option>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Dirección</label>
+              <input type="text" class="form-control" id="direccion" />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Observaciones</label>
+              <textarea class="form-control" id="observaciones" rows="1"></textarea>
+            </div>
+          </div>
+          <div class="d-flex gap-2 mt-3">
+            <button type="submit" class="btn btn-success">Guardar</button>
+            <button type="reset" class="btn btn-secondary" onclick="resetForm()">Cancelar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Filtros -->
+    <div class="row mb-3">
+      <div class="col-md-4">
+        <input type="text" id="busqueda" class="form-control" placeholder="Buscar por nombre, cargo o área...">
+      </div>
+      <div class="col-md-3">
+        <input type="date" id="fechaDesde" class="form-control">
+      </div>
+      <div class="col-md-3">
+        <input type="date" id="fechaHasta" class="form-control">
+      </div>
+    </div>
+
+    <div class="mb-3">
+        <button class="btn btn-outline-danger" onclick="generarReportePDF()">
+          <i class="bi bi-file-earmark-pdf-fill"></i> Generar Reporte PDF
+        </button>
+      </div>
+      
+    <!-- Tabla -->
+    <div class="card shadow">
+      <div class="card-header bg-secondary text-white">Lista de Empleados</div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>Nombre</th>
+                <th>Cargo</th>
+                <th>Área</th>
+                <th>Teléfono</th>
+                <th>Email</th>
+                <th>Ingreso</th>
+                <th>Contrato</th>
+                <th>Estado</th>
+                <th>Salario</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="tablaEmpleados"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toasts -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyCaEoCUyBH2vF10R7IYfatFzA54W7gt6yw",
+      authDomain: "erparquitectura-5d0fa.firebaseapp.com",
+      projectId: "erparquitectura-5d0fa",
+      storageBucket: "erparquitectura-5d0fa.appspot.com",
+      messagingSenderId: "609943109713",
+      appId: "1:609943109713:web:f49061250c06bf4aa5f870",
+      measurementId: "G-5QS2K0K2X2"
+    };
+  
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+    const form = document.getElementById('formEmpleado');
+    const tabla = document.getElementById('tablaEmpleados');
+    const empleadoId = document.getElementById('empleadoId');
+    const busquedaInput = document.getElementById('busqueda');
+    const fechaDesde = document.getElementById('fechaDesde');
+    const fechaHasta = document.getElementById('fechaHasta');
+  
+    let empleadosCargados = [];
+  
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const emp = obtenerDatosFormulario();
+      try {
+        if (empleadoId.value === '') {
+          await db.collection('empleados').add(emp);
+          mostrarToast('Empleado registrado ✅', 'success');
+        } else {
+          await db.collection('empleados').doc(empleadoId.value).update(emp);
+          mostrarToast('Empleado actualizado ✅', 'primary');
+        }
+        resetForm();
+        cargarEmpleados();
+      } catch {
+        mostrarToast('Error al guardar empleado ❌', 'danger');
+      }
+    });
+  
+    function obtenerDatosFormulario() {
+      return {
+        nombre: document.getElementById('nombre').value,
+        cargo: document.getElementById('cargo').value,
+        area: document.getElementById('area').value,
+        telefono: document.getElementById('telefono').value,
+        email: document.getElementById('email').value,
+        fechaIngreso: document.getElementById('fechaIngreso').value,
+        tipoContrato: document.getElementById('tipoContrato').value,
+        salario: parseFloat(document.getElementById('salario').value) || 0,
+        estado: document.getElementById('estado').value,
+        direccion: document.getElementById('direccion').value,
+        observaciones: document.getElementById('observaciones').value
+      };
+    }
+  
+    function resetForm() {
+      form.reset();
+      empleadoId.value = '';
+      document.getElementById('tituloFormulario').textContent = 'Registrar Empleado';
+    }
+  
+    function editarEmpleado(id) {
+      const emp = empleadosCargados.find(e => e.id === id);
+      if (!emp) return;
+      empleadoId.value = id;
+      for (let key in emp) {
+        if (document.getElementById(key)) {
+          document.getElementById(key).value = emp[key];
+        }
+      }
+      document.getElementById('tituloFormulario').textContent = 'Editar Empleado';
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  
+    async function eliminarEmpleado(id) {
+      if (!confirm('¿Deseas eliminar este empleado?')) return;
+      try {
+        await db.collection('empleados').doc(id).delete();
+        mostrarToast('Empleado eliminado 🗑️', 'warning');
+        cargarEmpleados();
+      } catch {
+        mostrarToast('Error al eliminar ❌', 'danger');
+      }
+    }
+  
+    async function cargarEmpleados() {
+      const snapshot = await db.collection('empleados').orderBy('fechaIngreso', 'desc').get();
+      empleadosCargados = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      filtrarEmpleados();
+    }
+  
+    function mostrarEmpleados(lista) {
+      tabla.innerHTML = '';
+      if (lista.length === 0) {
+        tabla.innerHTML = '<tr><td colspan="10" class="text-center">No se encontraron empleados.</td></tr>';
+        return;
+      }
+      lista.forEach(e => {
+        const salarioFormateado = (typeof e.salario === 'number' ? e.salario : 0)
+          .toLocaleString('es-CO', { style: 'currency', currency: 'COP' });
+  
+        tabla.innerHTML += `
+          <tr>
+            <td>${e.nombre}</td>
+            <td>${e.cargo}</td>
+            <td>${e.area}</td>
+            <td>${e.telefono}</td>
+            <td>${e.email}</td>
+            <td>${e.fechaIngreso}</td>
+            <td>${e.tipoContrato}</td>
+            <td>${e.estado}</td>
+            <td>${salarioFormateado}</td>
+            <td>
+              <button class="btn btn-sm btn-primary me-1" onclick="editarEmpleado('${e.id}')">
+                <i class="bi bi-pencil"></i>
+              </button>
+              <button class="btn btn-sm btn-danger" onclick="eliminarEmpleado('${e.id}')">
+                <i class="bi bi-trash"></i>
+              </button>
+            </td>
+          </tr>
+        `;
+      });
+    }
+  
+    function mostrarToast(mensaje, tipo = 'info') {
+      const toastId = `toast-${Date.now()}`;
+      const toastHTML = `
+        <div id="${toastId}" class="toast align-items-center text-bg-${tipo} border-0 mb-2" role="alert" aria-live="assertive" aria-atomic="true">
+          <div class="d-flex">
+            <div class="toast-body">${mensaje}</div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Cerrar"></button>
+          </div>
+        </div>
+      `;
+      const container = document.getElementById('toastContainer');
+      container.insertAdjacentHTML('beforeend', toastHTML);
+      const toastElement = new bootstrap.Toast(document.getElementById(toastId), { delay: 3000 });
+      toastElement.show();
+    }
+  
+    function filtrarEmpleados() {
+      const texto = busquedaInput.value.toLowerCase();
+      const desde = fechaDesde.value;
+      const hasta = fechaHasta.value;
+  
+      const filtrados = empleadosCargados.filter(e => {
+        const coincideTexto =
+          e.nombre.toLowerCase().includes(texto) ||
+          e.cargo.toLowerCase().includes(texto) ||
+          e.area.toLowerCase().includes(texto);
+  
+        const cumpleFecha =
+          (!desde || e.fechaIngreso >= desde) &&
+          (!hasta || e.fechaIngreso <= hasta);
+  
+        return coincideTexto && cumpleFecha;
+      });
+  
+      mostrarEmpleados(filtrados);
+    }
+  
+    busquedaInput.addEventListener('input', filtrarEmpleados);
+    fechaDesde.addEventListener('change', filtrarEmpleados);
+    fechaHasta.addEventListener('change', filtrarEmpleados);
+  
+    window.addEventListener('DOMContentLoaded', cargarEmpleados);
+
+    async function generarReportePDF() {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+
+    doc.setFontSize(16);
+    doc.text("Reporte de Empleados - Recursos Humanos", 14, 15);
+    doc.setFontSize(12);
+    doc.text(`Fecha: ${new Date().toLocaleDateString()}`, 14, 25);
+
+    const headers = ["Nombre", "Cargo", "Área", "Ingreso", "Salario"];
+    const data = empleadosCargados.map(e => [
+        e.nombre,
+        e.cargo,
+        e.area,
+        e.fechaIngreso,
+        (typeof e.salario === 'number' ? e.salario : 0).toLocaleString('es-CO', { style: 'currency', currency: 'COP' })
+    ]);
+
+    // Tabla con encabezados y datos
+    doc.autoTable({
+        startY: 30,
+        head: [headers],
+        body: data,
+        styles: { fontSize: 10 },
+        headStyles: { fillColor: [52, 58, 64] }
+    });
+
+    doc.save(`reporte_empleados_${Date.now()}.pdf`);
+    }
+
+  </script>
+  
+    <!-- Bootstrap CSS -->
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+
+<!-- Bootstrap Bundle JS (incluye Popper) -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="scripts/recursos-humanos.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+
+
+  </body>
+</html>

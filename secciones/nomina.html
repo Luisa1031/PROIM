@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Módulo de Nómina</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+  <style>
+    body {
+      background-color: #f8f9fa;
+    }
+    .card {
+      border-radius: 1rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="container py-5">
+    <div class="card shadow">
+      <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+        <h5 class="mb-0"><i class="bi bi-cash-stack me-2"></i>Módulo de Nómina</h5>
+        <span class="badge bg-light text-dark">Recursos Humanos</span>
+      </div>
+      <div class="card-body">
+        <form id="formNomina">
+          <div class="mb-3">
+            <label for="empleado" class="form-label">Seleccionar Empleado</label>
+            <select id="empleado" class="form-select" required>
+              <option selected disabled>Seleccione un empleado...</option>
+            </select>
+          </div>
+
+          <div class="mb-3">
+            <label for="salario" class="form-label">Salario Base</label>
+            <div class="input-group">
+              <span class="input-group-text"><i class="bi bi-currency-dollar"></i></span>
+              <input type="text" class="form-control" id="salario" readonly placeholder="Salario del empleado">
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label for="horasExtras" class="form-label">Horas Extras</label>
+            <input type="number" class="form-control" id="horasExtras" min="0" placeholder="Cantidad de horas extras">
+          </div>
+
+          <div class="mb-3">
+            <label for="bonificaciones" class="form-label">Bonificaciones</label>
+            <input type="number" class="form-control" id="bonificaciones" min="0" placeholder="Bonificaciones adicionales">
+          </div>
+
+          <div class="mb-3">
+            <label for="descuentos" class="form-label">Descuentos</label>
+            <input type="number" class="form-control" id="descuentos" min="0" placeholder="Descuentos aplicados">
+          </div>
+
+          <div class="d-grid">
+            <button type="submit" class="btn btn-success"><i class="bi bi-calculator me-2"></i>Calcular y Guardar Nómina</button>
+          </div>
+          <button id="btnDescargarRecibo" class="btn btn-secondary mt-2" type="button">📄 Descargar recibo</button>
+
+        </form>
+
+        <hr>
+        <h5 class="mt-4"><i class="bi bi-clock-history me-2"></i>Historial de Nómina</h5>
+        <div class="table-responsive">
+          <table class="table table-striped table-hover mt-2">
+            <thead class="table-light">
+              <tr>
+                <th>Empleado</th>
+                <th>Salario Base</th>
+                <th>Horas Extras</th>
+                <th>Bonificaciones</th>
+                <th>Descuentos</th>
+                <th>Salario Neto</th>
+                <th>Fecha</th>
+              </tr>
+            </thead>
+            <tbody id="tablaNomina">
+              <tr>
+                <td colspan="7" class="text-center text-muted">Cargando datos...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="card-footer text-muted text-center">
+        <i class="bi bi-check-circle-fill text-success me-2"></i>Datos cargados desde Firebase
+      </div>
+    </div>
+  </div>
+  <div id="reciboPDF" style="display:none; padding: 20px; font-family: Arial;">
+    <h2 style="color:#0d6efd;">Recibo de Nómina</h2>
+    <p><strong>Empleado:</strong> <span id="pdfNombre"></span></p>
+    <p><strong>Salario Base:</strong> $<span id="pdfSalarioBase"></span></p>
+    <p><strong>Horas Extras:</strong> <span id="pdfHorasExtras"></span></p>
+    <p><strong>Bonificaciones:</strong> $<span id="pdfBonificaciones"></span></p>
+    <p><strong>Descuentos:</strong> $<span id="pdfDescuentos"></span></p>
+    <hr>
+    <h4>Total Neto a Pagar: $<span id="pdfSalarioNeto"></span></h4>
+    <p><em>Fecha:</em> <span id="pdfFecha"></span></p>
+  </div>
+  
+
+  <!-- Firebase + Bootstrap JS -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.2/firebase-app.js";
+    import { getFirestore, collection, getDocs, addDoc } from "https://www.gstatic.com/firebasejs/10.7.2/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyCaEoCUyBH2vF10R7IYfatFzA54W7gt6yw",
+      authDomain: "erparquitectura-5d0fa.firebaseapp.com",
+      projectId: "erparquitectura-5d0fa",
+      storageBucket: "erparquitectura-5d0fa.appspot.com",
+      messagingSenderId: "609943109713",
+      appId: "1:609943109713:web:f49061250c06bf4aa5f870",
+      measurementId: "G-5QS2K0K2X2"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    const selectEmpleado = document.getElementById("empleado");
+    const inputSalario = document.getElementById("salario");
+    const empleadosMap = new Map();
+
+    async function cargarEmpleadosRH() {
+      try {
+        selectEmpleado.innerHTML = '<option selected disabled>Seleccione un empleado...</option>';
+        const snapshot = await getDocs(collection(db, "empleados"));
+        let hayResultados = false;
+
+        snapshot.forEach((doc) => {
+          const data = doc.data();
+          const area = (data.area || "").toLowerCase().trim();
+
+          if (area === "recursos humanos") {
+            hayResultados = true;
+            empleadosMap.set(doc.id, data);
+
+            const option = document.createElement("option");
+            option.value = doc.id;
+            option.textContent = data.nombre;
+            selectEmpleado.appendChild(option);
+          }
+        });
+
+        if (!hayResultados) {
+          const option = document.createElement("option");
+          option.disabled = true;
+          option.textContent = "No se encontraron empleados de RRHH";
+          selectEmpleado.appendChild(option);
+        }
+      } catch (error) {
+        console.error("Error cargando empleados:", error);
+        alert("Error al conectar con Firebase.");
+      }
+    }
+
+    selectEmpleado.addEventListener("change", () => {
+      const id = selectEmpleado.value;
+      const datos = empleadosMap.get(id);
+      if (datos) {
+        inputSalario.value = Number(datos.salario).toLocaleString("es-CO");
+      }
+    });
+
+    async function cargarHistorialNominas() {
+      const tabla = document.getElementById("tablaNomina");
+      tabla.innerHTML = "";
+
+      try {
+        const snapshot = await getDocs(collection(db, "nominas"));
+        const registros = [];
+        snapshot.forEach((doc) => registros.push(doc.data()));
+        registros.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+
+        if (registros.length === 0) {
+          tabla.innerHTML = `<tr><td colspan="7" class="text-center text-muted">No hay registros de nómina.</td></tr>`;
+          return;
+        }
+
+        registros.forEach(n => {
+          const fila = document.createElement("tr");
+          fila.innerHTML = `
+            <td>${n.nombre}</td>
+            <td>$${Number(n.salarioBase).toLocaleString("es-CO")}</td>
+            <td>${n.horasExtras}</td>
+            <td>$${Number(n.bonificaciones).toLocaleString("es-CO")}</td>
+            <td>$${Number(n.descuentos).toLocaleString("es-CO")}</td>
+            <td><strong>$${Number(n.salarioNeto).toLocaleString("es-CO")}</strong></td>
+            <td>${new Date(n.fecha).toLocaleDateString("es-CO")}</td>
+          `;
+          tabla.appendChild(fila);
+        });
+      } catch (error) {
+        console.error("Error cargando historial:", error);
+        tabla.innerHTML = `<tr><td colspan="7" class="text-center text-danger">Error al cargar nóminas.</td></tr>`;
+      }
+    }
+
+    document.getElementById("formNomina").addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      const empleadoId = selectEmpleado.value;
+      const datos = empleadosMap.get(empleadoId);
+
+      if (!empleadoId || !datos) {
+        alert("Seleccione un empleado válido");
+        return;
+      }
+
+      const horasExtras = Number(document.getElementById("horasExtras").value) || 0;
+      const bonificaciones = Number(document.getElementById("bonificaciones").value) || 0;
+      const descuentos = Number(document.getElementById("descuentos").value) || 0;
+
+      const salarioBase = Number(datos.salario);
+      const valorHoraExtra = salarioBase / 160;
+      const salarioNeto = salarioBase + (valorHoraExtra * horasExtras) + bonificaciones - descuentos;
+
+      try {
+        await addDoc(collection(db, "nominas"), {
+          nombre: datos.nombre,
+          salarioBase,
+          horasExtras,
+          bonificaciones,
+          descuentos,
+          salarioNeto,
+          fecha: new Date().toISOString()
+        });
+
+        alert("Nómina registrada exitosamente.");
+        document.getElementById("formNomina").reset();
+        inputSalario.value = "";
+        await cargarHistorialNominas();
+      } catch (error) {
+        console.error("Error guardando nómina:", error);
+        alert("Hubo un error al guardar la nómina.");
+      }
+    });
+
+    document.getElementById("btnDescargarRecibo").addEventListener("click", () => {
+  const nombre = document.getElementById("nombre").value;
+  const salarioBase = parseFloat(document.getElementById("salarioBase").value) || 0;
+  const horasExtras = parseFloat(document.getElementById("horasExtras").value) || 0;
+  const bonificaciones = parseFloat(document.getElementById("bonificaciones").value) || 0;
+  const descuentos = parseFloat(document.getElementById("descuentos").value) || 0;
+
+  const salarioHora = salarioBase / 160;
+  const valorHorasExtras = horasExtras * salarioHora;
+  const salarioNeto = salarioBase + valorHorasExtras + bonificaciones - descuentos;
+
+    // Llenar los campos del recibo
+    document.getElementById("pdfNombre").textContent = nombre;
+    document.getElementById("pdfSalarioBase").textContent = salarioBase.toLocaleString("es-CO");
+    document.getElementById("pdfHorasExtras").textContent = horasExtras;
+    document.getElementById("pdfBonificaciones").textContent = bonificaciones.toLocaleString("es-CO");
+    document.getElementById("pdfDescuentos").textContent = descuentos.toLocaleString("es-CO");
+    document.getElementById("pdfSalarioNeto").textContent = salarioNeto.toLocaleString("es-CO");
+    document.getElementById("pdfFecha").textContent = new Date().toLocaleDateString("es-CO");
+
+    const element = document.getElementById("reciboPDF");
+    html2pdf().set({
+        margin: 0.5,
+        filename: `recibo_nomina_${nombre.replace(/\s/g, "_")}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2 },
+        jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
+    }).from(element).save();
+    });
+
+
+    cargarEmpleadosRH();
+    cargarHistorialNominas();
+  </script>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

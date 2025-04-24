@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Módulo de Inventario</title>
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-100 text-gray-800">
+
+  <div class="p-6 max-w-4xl mx-auto">
+    <h2 class="text-3xl font-bold mb-6">Inventario</h2>
+    <div class="overflow-x-auto bg-white shadow-md rounded">
+      <table class="min-w-full table-auto">
+        <thead class="bg-blue-100 text-blue-800 text-sm uppercase">
+          <tr>
+            <th class="px-6 py-3 text-left">Nombre</th>
+            <th class="px-6 py-3 text-left">Categoría</th>
+            <th class="px-6 py-3 text-left">Cantidad (Stock)</th>
+            <th class="px-6 py-3 text-left">Precio Unitario</th>
+          </tr>
+        </thead>
+        <tbody id="tabla-inventario" class="text-sm divide-y divide-gray-200"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    // Configuración de Firebase (tuya)
+    const firebaseConfig = {
+      apiKey: "AIzaSyCaEoCUyBH2vF10R7IYfatFzA54W7gt6yw",
+      authDomain: "erparquitectura-5d0fa.firebaseapp.com",
+      projectId: "erparquitectura-5d0fa",
+      storageBucket: "erparquitectura-5d0fa.appspot.com",
+      messagingSenderId: "609943109713",
+      appId: "1:609943109713:web:f49061250c06bf4aa5f870",
+      measurementId: "G-5QS2K0K2X2"
+    };
+
+    // Inicializar Firebase
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    function obtenerNivelStock(cantidad) {
+      if (cantidad >= 20) return 'Alto';
+      if (cantidad >= 10) return 'Medio';
+      return 'Bajo';
+    }
+
+    function mostrarInventario() {
+      const tabla = document.getElementById("tabla-inventario");
+      tabla.innerHTML = "";
+
+      db.collection("inventario").get().then((querySnapshot) => {
+        querySnapshot.forEach((doc) => {
+          const { nombre, categoria, cantidad, precio } = doc.data();
+          const stock = obtenerNivelStock(cantidad);
+
+          let color = "text-red-500";
+          if (stock === "Medio") color = "text-yellow-500";
+          if (stock === "Alto") color = "text-green-600";
+
+          tabla.innerHTML += `
+            <tr>
+              <td class="px-6 py-4">${nombre}</td>
+              <td class="px-6 py-4">${categoria}</td>
+              <td class="px-6 py-4">
+                ${cantidad} <span class="text-xs ${color} font-semibold">(${stock})</span>
+              </td>
+              <td class="px-6 py-4">$${precio.toFixed(2)}</td>
+            </tr>
+          `;
+        });
+      }).catch((error) => {
+        console.error("Error al obtener inventario:", error);
+        tabla.innerHTML = `<tr><td colspan="4" class="text-center p-4 text-red-600">Error al cargar el inventario.</td></tr>`;
+      });
+    }
+
+    mostrarInventario();
+  </script>
+
+</body>
+</html>
